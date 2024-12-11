@@ -62,10 +62,10 @@ jobs:
             fi
 
             if [ ! -d .git ]; then
-              git clone https://github.com/aws-contest/backend .
+              git clone https://github.com/aws-contest/backend
             fi
 
-            cd ./backend
+            cd backend
             git pull
             npm ci
             pm2 reload ecosystem.config.js
