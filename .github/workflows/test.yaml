@@ -1,0 +1,55 @@
+name: lbCon CICD Action
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 코드 저장소 체크아웃
+      - name: Code Checkout
+        uses: actions/checkout@v4
+
+      # Node.js 환경 설정
+      - name: Node.js version setting
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      # 종속성 설치
+      - name: Dependency Install
+        working-directory: ./backend
+        run: npm ci
+
+      # 프로젝트 실행 테스트
+      - name: Project Execution Test
+        working-directory: ./backend
+        run: |
+          npm run start & sleep 10
+          kill $(lsof -t -i:3000) || true
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: 6379
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          PASSWORD_SALT: ${{ secrets.PASSWORD_SALT }}
+          # NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+
+      # 프로젝트를 원격 서버에 SSH 배포
+      - name: Remote Access Deployment for pm2
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.AWS_SSH_HOST }} 
+          username: ${{ secrets.AWS_SSH_USERNAME }}
+          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd backend
+            git pull
+            npm ci
+            pm2 reload ecosystem.config.js
