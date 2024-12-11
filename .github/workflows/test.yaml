@@ -56,7 +56,11 @@ jobs:
               sudo npm install -g pm2
             fi
 
-            cd ~/backend
+            if [ ! -d .git ]; then
+              git clone https://github.com/aws-contest/backend .
+            fi
+
+            cd ./backend
             git pull
             npm ci
             pm2 reload ecosystem.config.js
