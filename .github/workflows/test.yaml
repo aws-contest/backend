@@ -47,7 +47,6 @@ jobs:
           key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            cd backend
             git pull
             npm ci
             pm2 reload ecosystem.config.js
