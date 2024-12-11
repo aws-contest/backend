@@ -1,56 +1,47 @@
 // backend/utils/redisClient.js
-const Redis = require('redis');
-const { redisHost, redisPort } = require('../config/keys');
+const Redis = require('ioredis'); // Use ioredis for Redis Cluster
+const { redisPassword, redisNodes } = require('../config/keys');
 
 class RedisClient {
   constructor() {
-    this.client = null;
+    this.cluster = null;
     this.isConnected = false;
-    this.connectionAttempts = 0;
-    this.maxRetries = 5;
-    this.retryDelay = 5000;
   }
 
   async connect() {
-    if (this.isConnected && this.client) {
-      return this.client;
+    if (this.isConnected && this.cluster) {
+      return this.cluster;
     }
 
     try {
-      console.log('Connecting to Redis...');
+      console.log('Connecting to Redis Cluster...');
 
-      this.client = Redis.createClient({
-        url: `redis://${redisHost}:${redisPort}`,
-        socket: {
-          host: redisHost,
-          port: redisPort,
-          reconnectStrategy: (retries) => {
-            if (retries > this.maxRetries) {
-              return null;
-            }
-            return Math.min(retries * 50, 2000);
-          }
-        }
+      // Parse Redis nodes from environment variables
+      const nodes = redisNodes.split(',').map(node => {
+        const [host, port] = node.split(':');
+        return { host, port: parseInt(port, 10) };
       });
 
-      this.client.on('connect', () => {
-        console.log('Redis Client Connected');
+      this.cluster = new Redis.Cluster(nodes, {
+        redisOptions: {
+          password: redisPassword || undefined,
+        },
+      });
+
+      this.cluster.on('connect', () => {
+        console.log('Redis Cluster Connected');
         this.isConnected = true;
-        this.connectionAttempts = 0;
       });
 
-      this.client.on('error', (err) => {
-        console.error('Redis Client Error:', err);
+      this.cluster.on('error', (err) => {
+        console.error('Redis Cluster Error:', err);
         this.isConnected = false;
       });
 
-      await this.client.connect();
-      return this.client;
-
+      return this.cluster;
     } catch (error) {
-      console.error('Redis connection error:', error);
+      console.error('Redis Cluster connection error:', error);
       this.isConnected = false;
-      this.retryConnection();
       throw error;
     }
   }
@@ -69,9 +60,9 @@ class RedisClient {
       }
 
       if (options.ttl) {
-        return await this.client.setEx(key, options.ttl, stringValue);
+        return await this.cluster.setex(key, options.ttl, stringValue); // Use `setex` for TTL
       }
-      return await this.client.set(key, stringValue);
+      return await this.cluster.set(key, stringValue);
     } catch (error) {
       console.error('Redis set error:', error);
       throw error;
@@ -84,36 +75,16 @@ class RedisClient {
         await this.connect();
       }
 
-      const value = await this.client.get(key);
+      const value = await this.cluster.get(key);
       if (!value) return null;
 
       try {
         return JSON.parse(value);
       } catch (parseError) {
-        return value;  // 일반 문자열인 경우 그대로 반환
+        return value; // Return as is if not JSON
       }
     } catch (error) {
       console.error('Redis get error:', error);
-      throw error;
-    }
-  }
-
-  async setEx(key, seconds, value) {
-    try {
-      if (!this.isConnected) {
-        await this.connect();
-      }
-
-      let stringValue;
-      if (typeof value === 'object') {
-        stringValue = JSON.stringify(value);
-      } else {
-        stringValue = String(value);
-      }
-
-      return await this.client.setEx(key, seconds, stringValue);
-    } catch (error) {
-      console.error('Redis setEx error:', error);
       throw error;
     }
   }
@@ -123,7 +94,7 @@ class RedisClient {
       if (!this.isConnected) {
         await this.connect();
       }
-      return await this.client.del(key);
+      return await this.cluster.del(key);
     } catch (error) {
       console.error('Redis del error:', error);
       throw error;
@@ -135,7 +106,7 @@ class RedisClient {
       if (!this.isConnected) {
         await this.connect();
       }
-      return await this.client.expire(key, seconds);
+      return await this.cluster.expire(key, seconds);
     } catch (error) {
       console.error('Redis expire error:', error);
       throw error;
@@ -143,12 +114,12 @@ class RedisClient {
   }
 
   async quit() {
-    if (this.client) {
+    if (this.cluster) {
       try {
-        await this.client.quit();
+        await this.cluster.quit();
         this.isConnected = false;
-        this.client = null;
-        console.log('Redis connection closed successfully');
+        this.cluster = null;
+        console.log('Redis Cluster connection closed successfully');
       } catch (error) {
         console.error('Redis quit error:', error);
         throw error;
