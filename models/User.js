@@ -8,7 +8,7 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: [true, '이름은 필수 입력 항목입니다.'],
     trim: true,
-    minlength: [2, '이름은 2자 이상이어야 합니다.']
+    minlength: [2, '이름은 2자 이상이어야 합니다.'],
   },
   email: {
     type: String,
@@ -18,32 +18,39 @@ const UserSchema = new mongoose.Schema({
     lowercase: true,
     match: [
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      '올바른 이메일 형식이 아닙니다.'
-    ]
+      '올바른 이메일 형식이 아닙니다.',
+    ],
   },
   encryptedEmail: {
     type: String,
     unique: true,
-    sparse: true
+    sparse: true,
   },
   password: {
     type: String,
     required: [true, '비밀번호는 필수 입력 항목입니다.'],
     minlength: [6, '비밀번호는 6자 이상이어야 합니다.'],
-    select: false
+    select: false,
   },
   profileImage: {
     type: String,
-    default: ''
+    default: null, // Use `null` instead of an empty string for better semantics
+    validate: {
+      validator: function (v) {
+        if (!v) return true; // Allow null
+        return /^https?:\/\/[^\s$.?#].[^\s]*$/.test(v); // Validate URL format
+      },
+      message: '유효하지 않은 URL 형식입니다.',
+    },
   },
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   lastActive: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
 // 이메일 암호화 함수
@@ -62,19 +69,15 @@ function encryptEmail(email) {
 }
 
 // 비밀번호 해싱 및 이메일 암호화 미들웨어
-UserSchema.pre('save', async function(next) {
+UserSchema.pre('save', async function (next) {
   try {
-    // 비밀번호 변경 시에만 해싱
     if (this.isModified('password')) {
       const salt = await bcrypt.genSalt(10);
       this.password = await bcrypt.hash(this.password, salt);
     }
-
-    // 이메일 변경 시에만 암호화
     if (this.isModified('email')) {
       this.encryptedEmail = encryptEmail(this.email);
     }
-
     next();
   } catch (error) {
     next(error);
@@ -82,7 +85,7 @@ UserSchema.pre('save', async function(next) {
 });
 
 // 비밀번호 비교 메서드
-UserSchema.methods.matchPassword = async function(enteredPassword) {
+UserSchema.methods.matchPassword = async function (enteredPassword) {
   try {
     const user = await this.constructor.findById(this._id).select('+password');
     if (!user || !user.password) {
@@ -95,66 +98,21 @@ UserSchema.methods.matchPassword = async function(enteredPassword) {
   }
 };
 
-// 토큰 생성 메서드
-UserSchema.methods.generateVerificationToken = function() {
-  const crypto = require('crypto');
-  const token = crypto.randomBytes(32).toString('hex');
-  return token;
-};
-
-// 활성 상태 업데이트 메서드
-UserSchema.methods.updateLastActive = async function() {
-  this.lastActive = new Date();
-  return this.save();
-};
-
-// 사용자 정보 변경 메서드
-UserSchema.methods.updateProfile = async function(updateData) {
-  const allowedUpdates = ['name', 'profileImage'];
-  const updates = {};
-
-  Object.keys(updateData).forEach(key => {
-    if (allowedUpdates.includes(key)) {
-      updates[key] = updateData[key];
-    }
-  });
-
-  Object.assign(this, updates);
-  return this.save();
-};
-
-// 비밀번호 변경 메서드
-UserSchema.methods.changePassword = async function(currentPassword, newPassword) {
+// 프로필 이미지 업데이트 메서드
+UserSchema.methods.updateProfileImage = async function (imageUrl) {
   try {
-    // 현재 비밀번호 확인
-    const isMatch = await this.matchPassword(currentPassword);
-    if (!isMatch) {
-      throw new Error('현재 비밀번호가 일치하지 않습니다.');
-    }
-
-    // 새 비밀번호 설정
-    this.password = newPassword;
-    return this.save();
+    this.profileImage = imageUrl || null; // Set to null if no image URL is provided
+    return await this.save();
   } catch (error) {
-    throw error;
-  }
-};
-
-// 계정 삭제 메서드
-UserSchema.methods.deleteAccount = async function() {
-  try {
-    // 연결된 데이터 삭제 로직 추가
-    await this.constructor.deleteOne({ _id: this._id });
-    return true;
-  } catch (error) {
+    console.error('Profile image update error:', error);
     throw error;
   }
 };
 
 // 이메일 복호화 메서드
-UserSchema.methods.decryptEmail = function() {
+UserSchema.methods.decryptEmail = function () {
   if (!this.encryptedEmail) return null;
-  
+
   try {
     const [ivHex, encryptedHex] = this.encryptedEmail.split(':');
     const iv = Buffer.from(ivHex, 'hex');
@@ -166,6 +124,12 @@ UserSchema.methods.decryptEmail = function() {
     console.error('Email decryption error:', error);
     return null;
   }
+};
+
+// 활성 상태 업데이트 메서드
+UserSchema.methods.updateLastActive = async function () {
+  this.lastActive = new Date();
+  return this.save();
 };
 
 // 인덱스 생성
