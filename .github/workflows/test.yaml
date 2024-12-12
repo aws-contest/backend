@@ -9,35 +9,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 코드 저장소 체크아웃
-      - name: Code Checkout
-        uses: actions/checkout@v4
-
-      # Node.js 환경 설정
-      - name: Node.js version setting
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      # 종속성 설치
-      - name: Dependency Install
-        run: npm ci
-
-      # 프로젝트 실행 테스트
-      - name: Project Execution Test
-        run: |
-          npm run start & sleep 10
-          kill $(lsof -t -i:3000) || true
-        env:
-          MONGO_URI: ${{ secrets.MONGO_URI }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          REDIS_HOST: ${{ secrets.REDIS_HOST }}
-          REDIS_PORT: 6379
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-          PASSWORD_SALT: ${{ secrets.PASSWORD_SALT }}
-          # NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-
       # 프로젝트를 원격 서버에 SSH 배포
       - name: Remote Access Deployment for pm2
         uses: appleboy/ssh-action@v0.1.6
@@ -47,25 +18,6 @@ jobs:
           key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            if ! command -v git &> /dev/null; then
-              sudo apt-get update
-              sudo apt-get install -y git
-            fi
-
-            if ! command -v node &> /dev/null; then
-              curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-              sudo apt-get install -y nodejs
-            fi
-
-            if ! command -v pm2 &> /dev/null; then
-              sudo npm install -g pm2
-            fi
-
-            if [ ! -d .git ]; then
-              git clone https://github.com/aws-contest/backend
-            fi
-
-            cd backend
             git pull
             npm ci
-            pm2 reload ecosystem.config.js
+            pm2 reload ecosystem.config.js --max-memory-restart 1.9G
