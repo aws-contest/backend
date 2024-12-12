@@ -45,7 +45,7 @@ exports.uploadFile = async (req, res) => {
         mimetype: file.mimetype,
         size: file.size,
         uploadDate: file.uploadDate,
-        url: file.url, // Return the S3 URL
+        url: fileUrl, // Return the S3 URL
       },
     });
   } catch (error) {
