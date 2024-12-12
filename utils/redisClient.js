@@ -8,6 +8,15 @@ class RedisClient {
     this.isConnected = false;
   }
 
+  async setEx(key, ttl, value) {
+    try {
+      await this.set(key, value, { ttl });
+    } catch (error) {
+      console.error('Redis setEx error:', error);
+      throw error;
+    }
+  }
+
   async connect() {
     if (this.isConnected && this.cluster) {
       return this.cluster;
