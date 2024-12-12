@@ -340,7 +340,7 @@ module.exports = function(io) {
         if (!socket.user) {
           throw new Error('Unauthorized');
         }
-
+    
         // 이미 해당 방에 참여 중인지 확인
         const currentRoom = userRooms.get(socket.user.id);
         if (currentRoom === roomId) {
@@ -351,7 +351,7 @@ module.exports = function(io) {
           socket.emit('joinRoomSuccess', { roomId });
           return;
         }
-
+    
         // 기존 방에서 나가기
         if (currentRoom) {
           logDebug('leaving current room', { 
@@ -366,77 +366,43 @@ module.exports = function(io) {
             name: socket.user.name
           });
         }
-
-        // 채팅방 참가 with profileImage
-        const room = await Room.findByIdAndUpdate(
-          roomId,
-          { $addToSet: { participants: socket.user.id } },
-          { 
-            new: true,
-            runValidators: true 
+    
+        // Redis 캐시에서 참가자 목록 확인
+        let participants = await redisClient.get(`room:${roomId}:participants`);
+        if (!participants) {
+          const room = await Room.findById(roomId).select('participants').lean();
+          if (!room) {
+            throw new Error('채팅방을 찾을 수 없습니다.');
           }
-        ).populate('participants', 'name email profileImage');
-
-        if (!room) {
-          throw new Error('채팅방을 찾을 수 없습니다.');
+          participants = room.participants;
+          await redisClient.setEx(`room:${roomId}:participants`, 300, participants); // 캐싱
         }
-
+    
+        // 참가자 목록 업데이트
+        if (!participants.includes(socket.user.id)) {
+          participants.push(socket.user.id);
+          await Room.findByIdAndUpdate(roomId, { $addToSet: { participants: socket.user.id } });
+          await redisClient.setEx(`room:${roomId}:participants`, 300, participants); // 캐싱 업데이트
+        }
+    
         socket.join(roomId);
         userRooms.set(socket.user.id, roomId);
-
-        // 입장 메시지 생성
-        const joinMessage = new Message({
-          room: roomId,
-          content: `${socket.user.name}님이 입장하였습니다.`,
-          type: 'system',
-          timestamp: new Date()
-        });
-        
-        await joinMessage.save();
-
-        // 초기 메시지 로드
-        const messageLoadResult = await loadMessages(socket, roomId);
-        const { messages, hasMore, oldestTimestamp } = messageLoadResult;
-
-        // 활성 스트리밍 메시지 조회
-        const activeStreams = Array.from(streamingSessions.values())
-          .filter(session => session.room === roomId)
-          .map(session => ({
-            _id: session.messageId,
-            type: 'ai',
-            aiType: session.aiType,
-            content: session.content,
-            timestamp: session.timestamp,
-            isStreaming: true
-          }));
-
-        // 이벤트 발송
-        socket.emit('joinRoomSuccess', {
-          roomId,
-          participants: room.participants,
-          messages,
-          hasMore,
-          oldestTimestamp,
-          activeStreams
-        });
-
-        io.to(roomId).emit('message', joinMessage);
-        io.to(roomId).emit('participantsUpdate', room.participants);
-
+    
+        socket.emit('joinRoomSuccess', { roomId, participants });
+        io.to(roomId).emit('participantsUpdate', participants);
+    
         logDebug('user joined room', {
           userId: socket.user.id,
-          roomId,
-          messageCount: messages.length,
-          hasMore
+          roomId
         });
-
+    
       } catch (error) {
         console.error('Join room error:', error);
         socket.emit('joinRoomError', {
           message: error.message || '채팅방 입장에 실패했습니다.'
         });
       }
-    });
+    });    
     
     // 메시지 전송 처리
     socket.on('chatMessage', async (messageData) => {
@@ -572,82 +538,65 @@ module.exports = function(io) {
       }
     });
 
-    // 채팅방 퇴장 처리
+    // Leaving
     socket.on('leaveRoom', async (roomId) => {
       try {
         if (!socket.user) {
           throw new Error('Unauthorized');
         }
-
+    
         // 실제로 해당 방에 참여 중인지 먼저 확인
-        const currentRoom = userRooms?.get(socket.user.id);
+        const currentRoom = userRooms.get(socket.user.id);
         if (!currentRoom || currentRoom !== roomId) {
-          console.log(`User ${socket.user.id} is not in room ${roomId}`);
+          logDebug('not in room', {
+            userId: socket.user.id,
+            roomId
+          });
           return;
         }
-
-        // 권한 확인
-        const room = await Room.findOne({
-          _id: roomId,
-          participants: socket.user.id
-        }).select('participants').lean();
-
-        if (!room) {
-          console.log(`Room ${roomId} not found or user has no access`);
-          return;
+    
+        // Redis 캐시에서 참가자 목록 가져오기
+        let participants = await redisClient.get(`room:${roomId}:participants`);
+        if (!participants) {
+          const room = await Room.findById(roomId).select('participants').lean();
+          if (!room) {
+            throw new Error('채팅방을 찾을 수 없습니다.');
+          }
+          participants = room.participants;
         }
-
+    
+        // 참가자 목록에서 제거
+        participants = participants.filter((userId) => userId !== socket.user.id);
+        await Room.findByIdAndUpdate(roomId, { $pull: { participants: socket.user.id } });
+        await redisClient.setEx(`room:${roomId}:participants`, 300, participants); // 캐싱 업데이트
+    
         socket.leave(roomId);
         userRooms.delete(socket.user.id);
-
-        // 퇴장 메시지 생성 및 저장
+    
+        // 퇴장 메시지 생성
         const leaveMessage = await Message.create({
           room: roomId,
           content: `${socket.user.name}님이 퇴장하였습니다.`,
           type: 'system',
           timestamp: new Date()
         });
-
-        // 참가자 목록 업데이트 - profileImage 포함
-        const updatedRoom = await Room.findByIdAndUpdate(
-          roomId,
-          { $pull: { participants: socket.user.id } },
-          { 
-            new: true,
-            runValidators: true
-          }
-        ).populate('participants', 'name email profileImage');
-
-        if (!updatedRoom) {
-          console.log(`Room ${roomId} not found during update`);
-          return;
-        }
-
-        // 스트리밍 세션 정리
-        for (const [messageId, session] of streamingSessions.entries()) {
-          if (session.room === roomId && session.userId === socket.user.id) {
-            streamingSessions.delete(messageId);
-          }
-        }
-
-        // 메시지 큐 정리
-        const queueKey = `${roomId}:${socket.user.id}`;
-        messageQueues.delete(queueKey);
-        messageLoadRetries.delete(queueKey);
-
+    
         // 이벤트 발송
         io.to(roomId).emit('message', leaveMessage);
-        io.to(roomId).emit('participantsUpdate', updatedRoom.participants);
-
-        console.log(`User ${socket.user.id} left room ${roomId} successfully`);
-
+        io.to(roomId).emit('participantsUpdate', participants);
+    
+        logDebug('user left room', {
+          userId: socket.user.id,
+          roomId
+        });
+    
       } catch (error) {
         console.error('Leave room error:', error);
         socket.emit('error', {
           message: error.message || '채팅방 퇴장 중 오류가 발생했습니다.'
         });
       }
-    });
+    });    
     
     // 연결 해제 처리
     socket.on('disconnect', async (reason) => {
