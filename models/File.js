@@ -22,7 +22,7 @@ const FileSchema = new mongoose.Schema(
           const sanitizedName = name.replace(/[\/\\]/g, ''); // Remove path separators
           return sanitizedName.normalize('NFC'); // Unicode normalization
         } catch (error) {
-          console.error('Filename sanitization error:', error);
+          console.error('Filename sanitization error:', error, { name });
           return name;
         }
       },
@@ -31,7 +31,7 @@ const FileSchema = new mongoose.Schema(
           if (!name) return '';
           return name.normalize('NFC'); // Return normalized name
         } catch (error) {
-          console.error('Filename retrieval error:', error);
+          console.error('Filename retrieval error:', error, { name });
           return name;
         }
       },
@@ -52,7 +52,7 @@ const FileSchema = new mongoose.Schema(
       index: true,
     },
     url: {
-      type: String, // Replace `path` with `url` for S3 integration
+      type: String,
       required: true,
     },
     uploadDate: {
@@ -68,15 +68,9 @@ const FileSchema = new mongoose.Schema(
   }
 );
 
-// 복합 인덱스
-FileSchema.index({ filename: 1, user: 1 }, { unique: true });
-
-// Content-Disposition 헤더를 위한 파일명 인코딩 메서드
 FileSchema.methods.getEncodedFilename = function () {
   try {
-    const filename = this.originalname;
-    if (!filename) return '';
-
+    const filename = this.originalname || this.filename || 'file';
     const encodedFilename = encodeURIComponent(filename)
       .replace(/'/g, "%27")
       .replace(/\(/g, "%28")
@@ -88,21 +82,14 @@ FileSchema.methods.getEncodedFilename = function () {
       encoded: `UTF-8''${encodedFilename}`, // RFC 5987 format
     };
   } catch (error) {
-    console.error('Filename encoding error:', error);
+    console.error('Filename encoding error:', error, { originalname: this.originalname });
     return {
-      legacy: this.filename,
-      encoded: this.filename,
+      legacy: this.filename || 'file',
+      encoded: this.filename || 'file',
     };
   }
 };
 
-// 다운로드용 Content-Disposition 헤더 생성 메서드
-FileSchema.methods.getContentDisposition = function (type = 'attachment') {
-  const { legacy, encoded } = this.getEncodedFilename();
-  return `${type}; filename="${legacy}"; filename*=${encoded}`;
-};
-
-// 파일 MIME 타입 검증 메서드
 FileSchema.methods.isPreviewable = function () {
   const previewableTypes = [
     'image/jpeg',

@@ -23,6 +23,7 @@ exports.uploadFile = async (req, res) => {
 
     // Upload file to S3
     const fileUrl = await uploadToS3(req.file);
+    console.log('Uploaded file URL:', fileUrl); // Log the uploaded file URL for debugging
 
     const file = new File({
       filename: generateSafeFilename(req.file.originalname),
@@ -58,60 +59,6 @@ exports.uploadFile = async (req, res) => {
   }
 };
 
-// Download File
-exports.downloadFile = async (req, res) => {
-  try {
-    const file = await File.findOne({ filename: req.params.filename });
-
-    if (!file) {
-      return res.status(404).json({
-        success: false,
-        message: '파일을 찾을 수 없습니다.',
-      });
-    }
-
-    res.redirect(file.url); // Redirect to the S3 URL
-  } catch (error) {
-    console.error('File download error:', error);
-    res.status(500).json({
-      success: false,
-      message: '파일 다운로드 중 오류가 발생했습니다.',
-      error: error.message,
-    });
-  }
-};
-
-// View File
-exports.viewFile = async (req, res) => {
-  try {
-    const file = await File.findOne({ filename: req.params.filename });
-
-    if (!file) {
-      return res.status(404).json({
-        success: false,
-        message: '파일을 찾을 수 없습니다.',
-      });
-    }
-
-    // Check if file is previewable (extend this logic as needed)
-    if (!file.isPreviewable || typeof file.isPreviewable !== 'function' || !file.isPreviewable()) {
-      return res.status(415).json({
-        success: false,
-        message: '미리보기를 지원하지 않는 파일 형식입니다.',
-      });
-    }
-
-    res.redirect(file.url); // Redirect to the S3 URL
-  } catch (error) {
-    console.error('File view error:', error);
-    res.status(500).json({
-      success: false,
-      message: '파일 보기 중 오류가 발생했습니다.',
-      error: error.message,
-    });
-  }
-};
-
 // Delete File
 exports.deleteFile = async (req, res) => {
   try {
@@ -131,8 +78,11 @@ exports.deleteFile = async (req, res) => {
       });
     }
 
+    // Extract the S3 key from the URL
+    const s3Url = new URL(file.url);
+    const s3Key = decodeURIComponent(s3Url.pathname.slice(1)); // Decode and remove leading slash
+
     // Delete the file from S3
-    const s3Key = file.url.split('/').pop(); // Extract the S3 key from the URL
     await deleteFromS3(s3Key);
 
     await file.deleteOne();

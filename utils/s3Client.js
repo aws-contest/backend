@@ -20,6 +20,7 @@ const uploadToS3 = async (file, bucketName = s3bucketName) => {
 
     try {
         const uploadResult = await s3.upload(params).promise();
+        console.log('S3 upload successful:', uploadResult.Location); // Log the URL
         return uploadResult.Location; // Return the public URL of the uploaded file
     } catch (error) {
         console.error('S3 upload error:', error);
