@@ -25,7 +25,7 @@ const uploadFile = async (req, res) => {
     const fileUrl = await uploadToS3(req.file);
 
     const file = new File({
-      filename: req.file.originalname,
+      filename: generateSafeFilename(req.file.originalname),
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,

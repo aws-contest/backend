@@ -10,10 +10,9 @@ const s3 = new AWS.S3({
 
 // Upload a file to S3
 const uploadToS3 = async (file, bucketName = s3bucketName) => {
-    const encodedFilename = encodeURIComponent(file.originalname); // Encode filename
     const params = {
         Bucket: bucketName,
-        Key: encodedFilename,
+        Key: file.filename,
         Body: file.buffer, // File content
         ContentType: file.mimetype, // MIME type
     };
