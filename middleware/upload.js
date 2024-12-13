@@ -3,29 +3,29 @@ const path = require('path');
 const { uploadToS3 } = require('../utils/s3Client');
 
 // MIME 타입과 확장자 매핑
-const ALLOWED_TYPES = {
-  'image/jpeg': ['.jpg', '.jpeg'],
-  'image/png': ['.png'],
-  'image/gif': ['.gif'],
-  'image/webp': ['.webp'],
-};
-
-// MIME 타입과 확장자 매핑
 // const ALLOWED_TYPES = {
 //   'image/jpeg': ['.jpg', '.jpeg'],
 //   'image/png': ['.png'],
 //   'image/gif': ['.gif'],
 //   'image/webp': ['.webp'],
-//   'video/mp4': ['.mp4'],
-//   'video/webm': ['.webm'],
-//   'video/quicktime': ['.mov'],
-//   'audio/mpeg': ['.mp3'],
-//   'audio/wav': ['.wav'],
-//   'audio/ogg': ['.ogg'],
-//   'application/pdf': ['.pdf'],
-//   'application/msword': ['.doc'],
-//   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
 // };
+
+// MIME 타입과 확장자 매핑
+const ALLOWED_TYPES = {
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/gif': ['.gif'],
+  'image/webp': ['.webp'],
+  'video/mp4': ['.mp4'],
+  'video/webm': ['.webm'],
+  'video/quicktime': ['.mov'],
+  'audio/mpeg': ['.mp3'],
+  'audio/wav': ['.wav'],
+  'audio/ogg': ['.ogg'],
+  'application/pdf': ['.pdf'],
+  'application/msword': ['.doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+};
 
 // 파일 타입별 크기 제한 설정
 const FILE_SIZE_LIMITS = {
