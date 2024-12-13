@@ -22,6 +22,6 @@ jobs:
           port: 22
           script: |
             cd backend
-            git pull
+            git reset --hard origin/main
             npm ci
             pm2 reload ecosystem.config.js --max-memory-restart 1.9G
