@@ -15,49 +15,54 @@ const generateSafeFilename = (originalFilename) => {
 // Upload File
 const uploadFile = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: '파일이 선택되지 않았습니다.',
+      if (!req.file || !req.file.buffer || !req.file.mimetype || !req.file.originalname) {
+          return res.status(400).json({
+              success: false,
+              message: '파일이 선택되지 않았습니다.',
+          });
+      }
+
+      // Generate a safe filename
+      const safeFilename = generateSafeFilename(req.file.originalname);
+      req.file.filename = safeFilename; // Add the filename to the file object
+
+      // Upload file to S3
+      const fileUrl = await uploadToS3(req.file);
+
+      const file = new File({
+          filename: safeFilename, // Use the safe filename
+          originalname: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          user: req.user.id,
+          url: fileUrl, // Save the S3 URL
       });
-    }
 
-    // Upload file to S3
-    const fileUrl = await uploadToS3(req.file);
+      await file.save();
 
-    const file = new File({
-      filename: generateSafeFilename(req.file.originalname),
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size,
-      user: req.user.id,
-      url: fileUrl, // Save S3 URL instead of local path
-    });
-
-    await file.save();
-
-    res.status(200).json({
-      success: true,
-      message: '파일 업로드 성공',
-      file: {
-        _id: file._id,
-        filename: file.filename,
-        originalname: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        uploadDate: file.uploadDate,
-        url: file.url, // Return the S3 URL
-      },
-    });
+      res.status(200).json({
+          success: true,
+          message: '파일 업로드 성공',
+          file: {
+              _id: file._id,
+              filename: file.filename,
+              originalname: file.originalname,
+              mimetype: file.mimetype,
+              size: file.size,
+              uploadDate: file.uploadDate,
+              url: file.url, // Return the S3 URL
+          },
+      });
   } catch (error) {
-    console.error('File upload error:', error);
-    res.status(500).json({
-      success: false,
-      message: '파일 업로드 중 오류가 발생했습니다.',
-      error: error.message,
-    });
+      console.error('File upload error:', error);
+      res.status(500).json({
+          success: false,
+          message: '파일 업로드 중 오류가 발생했습니다.',
+          error: error.message,
+      });
   }
 };
+
 
 // Download File
 const downloadFile = async (req, res) => {

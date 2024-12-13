@@ -12,9 +12,13 @@ const s3 = new S3Client({
 
 // Upload a file to S3
 const uploadToS3 = async (file, bucketName = s3bucketName) => {
+    if (!file || !file.buffer || !file.mimetype || !file.filename) {
+        throw new Error('Invalid file object. Ensure "buffer", "mimetype", and "filename" are present.');
+    }
+
     const params = {
         Bucket: bucketName,
-        Key: file.originalname, // Filename/key for S3
+        Key: file.filename, // Use the safe filename as the S3 key
         Body: file.buffer, // File content
         ContentType: file.mimetype, // MIME type
     };
@@ -22,8 +26,7 @@ const uploadToS3 = async (file, bucketName = s3bucketName) => {
     try {
         // Use PutObjectCommand for uploading files
         const command = new PutObjectCommand(params);
-        const response = await s3.send(command);
-        console.log("S3 Upload ERROR", response)
+        await s3.send(command);
 
         // Construct the S3 URL manually
         const fileUrl = `https://${bucketName}.s3.${awsRegion}.amazonaws.com/${file.filename}`;
@@ -33,6 +36,7 @@ const uploadToS3 = async (file, bucketName = s3bucketName) => {
         throw new Error('Failed to upload file to S3');
     }
 };
+
 
 // Delete a file from S3
 const deleteFromS3 = async (key, bucketName = s3bucketName) => {
