@@ -7,8 +7,8 @@ const crypto = require('crypto');
 const generateSafeFilename = (originalFilename) => {
   const ext = path.extname(originalFilename || '').toLowerCase();
   const timestamp = Date.now();
-  const randomBytes = crypto.randomBytes(8).toString('hex');
-  return `${timestamp}_${randomBytes}${ext}`;
+  // const randomBytes = crypto.randomBytes(8).toString('hex');
+  return `${timestamp}_${originalFilename}${ext}`;
 };
 
 // Upload File
