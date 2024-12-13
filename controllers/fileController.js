@@ -61,7 +61,8 @@ exports.uploadFile = async (req, res) => {
 // Download File
 exports.downloadFile = async (req, res) => {
   try {
-    const file = await File.findOne({ filename: req.params.filename });
+    // const file = await File.findOne({ filename: req.params.filename });
+    const file = await File.findOne({ filename: req.params.filename }).lean();
 
     if (!file) {
       return res.status(404).json({
