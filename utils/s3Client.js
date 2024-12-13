@@ -1,25 +1,33 @@
-const AWS = require('aws-sdk');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { awsAccessKeyID, awsSecretAccessKey, awsRegion, s3bucketName } = require('../config/keys');
 
 // Initialize the S3 client
-const s3 = new AWS.S3({
-    accessKeyId: awsAccessKeyID,
-    secretAccessKey: awsSecretAccessKey,
+const s3 = new S3Client({
     region: awsRegion,
+    credentials: {
+        accessKeyId: awsAccessKeyID,
+        secretAccessKey: awsSecretAccessKey,
+    },
 });
 
 // Upload a file to S3
 const uploadToS3 = async (file, bucketName = s3bucketName) => {
     const params = {
         Bucket: bucketName,
-        Key: file.filename,
+        Key: file.filename, // Filename/key for S3
         Body: file.buffer, // File content
         ContentType: file.mimetype, // MIME type
     };
 
     try {
-        const uploadResult = await s3.upload(params).promise();
-        return uploadResult.Location; // Return the public URL of the uploaded file
+        // Use PutObjectCommand for uploading files
+        const command = new PutObjectCommand(params);
+        const response = await s3.send(command);
+        console.log("S3 Upload ERROR", response)
+
+        // Construct the S3 URL manually
+        const fileUrl = `https://${bucketName}.s3.${awsRegion}.amazonaws.com/${file.filename}`;
+        return fileUrl; // Return the public URL of the uploaded file
     } catch (error) {
         console.error('S3 upload error:', error);
         throw new Error('Failed to upload file to S3');
@@ -34,7 +42,9 @@ const deleteFromS3 = async (key, bucketName = s3bucketName) => {
     };
 
     try {
-        await s3.deleteObject(params).promise();
+        // Use DeleteObjectCommand for deleting files
+        const command = new DeleteObjectCommand(params);
+        await s3.send(command);
     } catch (error) {
         console.error('S3 delete error:', error);
         throw new Error('Failed to delete file from S3');
