@@ -8,7 +8,8 @@ const generateSafeFilename = (originalFilename) => {
   const ext = path.extname(originalFilename || '').toLowerCase();
   const timestamp = Date.now();
   // const randomBytes = crypto.randomBytes(8).toString('hex');
-  return `${timestamp}_${originalFilename}${ext}`;
+  // return `${timestamp}_${originalFilename}${ext}`;
+  return `${timestamp}_${originalFilename}`;
 };
 
 // Upload File
