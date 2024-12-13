@@ -14,7 +14,7 @@ const s3 = new S3Client({
 const uploadToS3 = async (file, bucketName = s3bucketName) => {
     const params = {
         Bucket: bucketName,
-        Key: file.filename, // Filename/key for S3
+        Key: file.originalname, // Filename/key for S3
         Body: file.buffer, // File content
         ContentType: file.mimetype, // MIME type
     };
