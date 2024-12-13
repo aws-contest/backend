@@ -19,7 +19,7 @@ const uploadToS3 = async (file, bucketName = s3bucketName) => {
 
     console.log('File Object:', {
         Bucket: bucketName,
-        Key: file.filename,
+        Key: file.originalname,
         BodyLength: file.buffer.length,
         ContentType: file.mimetype,
     });
