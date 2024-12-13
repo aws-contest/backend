@@ -15,11 +15,11 @@ router.post(
 );
 
 // 파일 다운로드
-// router.get(
-//   '/download/:filename',
-//   auth, // Authenticate the user
-//   fileController.downloadFile // Delegate file download logic to the controller
-// );
+router.get(
+  '/download/:filename',
+  auth, // Authenticate the user
+  fileController.downloadFile // Delegate file download logic to the controller
+);
 
 // 파일 보기 (미리보기용)
 router.get(
