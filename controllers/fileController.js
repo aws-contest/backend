@@ -12,7 +12,7 @@ const generateSafeFilename = (originalFilename) => {
 };
 
 // Upload File
-exports.uploadFile = async (req, res) => {
+const uploadFile = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -59,18 +59,33 @@ exports.uploadFile = async (req, res) => {
 };
 
 // Download File
-exports.downloadFile = async (req, res) => {
+const downloadFile = async (req, res) => {
   try {
-    const file = await File.findOne({ filename: req.params.filename });
+    // Validate the filename
+    const filename = req.params.filename;
+    if (!filename) {
+      return res.status(400).json({
+        success: false,
+        message: '파일명이 제공되지 않았습니다.',
+      });
+    }
+
+    // Sanitize the filename
+    const sanitizedFilename = filename.replace(/[\W_]+/g, '');
+
+    // Find the file in the database (case-insensitive)
+    const file = await File.findOne({ filename: { $regex: new RegExp(`^${sanitizedFilename}$`, 'i') } });
 
     if (!file) {
+      console.warn(`File not found: ${sanitizedFilename}`);
       return res.status(404).json({
         success: false,
         message: '파일을 찾을 수 없습니다.',
       });
     }
 
-    res.redirect(file.url); // Redirect to the S3 URL
+    // Redirect to the S3 URL
+    res.redirect(file.url);
   } catch (error) {
     console.error('File download error:', error);
     res.status(500).json({
@@ -82,7 +97,7 @@ exports.downloadFile = async (req, res) => {
 };
 
 // View File
-exports.viewFile = async (req, res) => {
+const viewFile = async (req, res) => {
   try {
     const file = await File.findOne({ filename: req.params.filename });
 
@@ -113,7 +128,7 @@ exports.viewFile = async (req, res) => {
 };
 
 // Delete File
-exports.deleteFile = async (req, res) => {
+const deleteFile = async (req, res) => {
   try {
     const file = await File.findById(req.params.id);
 
@@ -150,3 +165,11 @@ exports.deleteFile = async (req, res) => {
     });
   }
 };
+
+
+module.exports = {
+  downloadFile,
+  uploadFile,
+  viewFile,
+  deleteFile
+}
