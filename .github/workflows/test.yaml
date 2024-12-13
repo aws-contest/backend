@@ -23,6 +23,5 @@ jobs:
           script: |
             cd backend
             git pull
-            npm i aws-sdk
             npm ci
             pm2 reload ecosystem.config.js --max-memory-restart 1.9G
